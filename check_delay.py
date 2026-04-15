@@ -1,3 +1,4 @@
+!/usr/bin/env python3
 """
 EC 459 Bad Schandau — kontrola zpoždění
 Dotáže se DB API, zjistí aktuální zpoždění EC 459 v Bad Schandau

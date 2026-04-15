@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 EC 459 Bad Schandau — kontrola zpoždění
 Dotáže se DB API, zjistí aktuální zpoždění EC 459 v Bad Schandau
@@ -121,7 +120,7 @@ def send_ntfy(topic: str, message: str) -> None:
     if not topic:
         print("⚠️  NTFY_TOPIC není nastaveno — notifikace nebude odeslána.")
         return
-    requests.post(
+    resp = requests.post(
         f"https://ntfy.sh/{topic}",
         data=message.encode("utf-8"),
         headers={
@@ -131,6 +130,7 @@ def send_ntfy(topic: str, message: str) -> None:
         },
         timeout=10,
     )
+    print(f"✉️  ntfy odpověď: HTTP {resp.status_code}")
     print(f"✉️  Notifikace odeslána na topic: {topic}")
  
  
@@ -142,7 +142,10 @@ def main():
  
         dep = find_ec459(departures)
         if dep is None:
-            message = "❓ EC 459 dnes v Bad Schandau nenalezen (zrušen nebo jiná trasa?)"
+            # Vypiš všechny nalezené linky pro diagnostiku
+            found_lines = [d.get("line", {}).get("name", "?") for d in departures]
+            print(f"   Nalezené linky: {found_lines}")
+            message = "❓ EC 459 nenalezeno v Bad Schandau"
         else:
             message = format_message(dep)
  

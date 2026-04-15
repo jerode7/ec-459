@@ -1,4 +1,5 @@
-""
+#!/usr/bin/env python3
+"""
 EC 459 Bad Schandau — kontrola zpoždění
 Dotáže se DB API, zjistí aktuální zpoždění EC 459 v Bad Schandau
 a pošle push notifikaci přes ntfy.sh.
@@ -13,55 +14,42 @@ from datetime import datetime
 # ntfy topic se načte z proměnné prostředí (nastavené jako GitHub Secret)
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "")
  
-# Zkusíme v6, pak v5 jako zálohu
+# EVA číslo vlakového nádraží Bad Schandau (DB stanice, ne autobusová zastávka)
+BAD_SCHANDAU_ID = "8010020"
+ 
+# Záložní API verze
 API_BASES = [
     "https://v6.db.transport.rest",
     "https://v5.db.transport.rest",
 ]
 MAX_RETRIES = 3
-RETRY_DELAY = 10  # sekund mezi pokusy
+RETRY_DELAY = 15  # sekund mezi pokusy
  
  
-def api_get(path: str, params: dict, retries: int = MAX_RETRIES) -> dict | list:
+def api_get(path: str, params: dict) -> dict | list:
     """GET request s automatickým retry a záložním API."""
     last_error = None
     for api_base in API_BASES:
         url = f"{api_base}{path}"
-        for attempt in range(1, retries + 1):
+        for attempt in range(1, MAX_RETRIES + 1):
             try:
-                print(f"   [{attempt}/{retries}] {url}")
+                print(f"   [{attempt}/{MAX_RETRIES}] {api_base}{path}")
                 resp = requests.get(url, params=params, timeout=15)
                 resp.raise_for_status()
                 return resp.json()
             except requests.HTTPError as e:
                 last_error = e
-                if resp.status_code in (503, 502, 429):
+                if resp.status_code in (500, 502, 503, 429):
                     print(f"   ⚠️  HTTP {resp.status_code}, čekám {RETRY_DELAY}s...")
                     time.sleep(RETRY_DELAY)
                 else:
-                    break  # jiná chyba — nepomůže retry
+                    break  # jiná HTTP chyba — retry nepomůže
             except requests.RequestException as e:
                 last_error = e
-                print(f"   ⚠️  Chyba připojení: {e}, čekám {RETRY_DELAY}s...")
+                print(f"   ⚠️  Chyba připojení ({e}), čekám {RETRY_DELAY}s...")
                 time.sleep(RETRY_DELAY)
         print(f"   ❌ {api_base} nedostupné, zkouším zálohu...")
     raise RuntimeError(f"Všechna API selhala. Poslední chyba: {last_error}")
- 
- 
-def find_stop(name: str) -> str:
-    """Najde ID stanice v DB podle názvu."""
-    data = api_get("/locations", {
-        "query": name,
-        "results": 5,
-        "stops": "true",
-        "addresses": "false",
-        "poi": "false",
-    })
-    stops = data if isinstance(data, list) else data.get("stops", [])
-    for stop in stops:
-        if stop.get("type") == "stop" and "Bad Schandau" in stop.get("name", ""):
-            return stop["id"]
-    raise RuntimeError(f"Stanice '{name}' nenalezena v DB API")
  
  
 def get_departures(stop_id: str) -> list:
@@ -148,12 +136,8 @@ def send_ntfy(topic: str, message: str) -> None:
  
 def main():
     try:
-        print("🔍 Hledám stanici Bad Schandau...")
-        stop_id = find_stop("Bad Schandau")
-        print(f"   Nalezena stanice ID: {stop_id}")
- 
-        print("🚂 Načítám aktuální odjezdy...")
-        departures = get_departures(stop_id)
+        print(f"🚂 Načítám odjezdy z Bad Schandau (ID: {BAD_SCHANDAU_ID})...")
+        departures = get_departures(BAD_SCHANDAU_ID)
         print(f"   Celkem odjezdů: {len(departures)}")
  
         dep = find_ec459(departures)

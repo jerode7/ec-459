@@ -1,0 +1,31 @@
+name: EC 459 Bad Schandau — denní zpoždění
+
+on:
+  schedule:
+    # 7:25 CEST (letní čas, UTC+2) = 05:25 UTC
+    # V zimě (CET, UTC+1) bude spuštění v 6:25 — stále před odjezdem 7:37
+    - cron: "25 5 * * 1-5"
+
+  # Možnost spustit ručně (pro testování) přes záložku Actions na GitHubu
+  workflow_dispatch:
+
+jobs:
+  check-delay:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repozitáře
+        uses: actions/checkout@v4
+
+      - name: Nastavit Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Nainstalovat závislosti
+        run: pip install requests
+
+      - name: Zkontrolovat zpoždění EC 459
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python check_delay.py
